@@ -28,15 +28,10 @@ struct Deck {
         for (std::uint8_t i = 0; i < 52; ++i) cards[i] = Card{i};
     }
 
-    void shuffle(const std::uint64_t seed = 0) {
+    void shuffle(const std::uint64_t seed) {
         std::mt19937_64 rng;
-        if (seed) {
-            reset();
-            rng.seed(seed);
-        } else {
-            rng.seed(static_cast<std::mt19937_64::result_type>(
-                std::chrono::high_resolution_clock::now().time_since_epoch().count()));
-        }
+        reset();
+        rng.seed(seed);
         std::shuffle(cards.begin(), cards.end(), rng);
     }
 
@@ -69,7 +64,13 @@ struct Move {
     constexpr Move(std::int8_t f, std::int8_t t) : from{f}, to{t} {}
 
     friend std::ostream& operator<<(std::ostream& os, const Move& m) {
-        os << "From " << int(m.from) << " to " << int(m.to) << ".\n";
+        if (m.to != -1) {
+            os << "Move from pile " << int(m.from) + 1 << " to pile " << int(m.to) + 1 << ".\n";
+        } else if (m.from != -1) {
+            os << "Discard from pile " << int(m.from) + 1 << ".\n";
+        } else {
+            os << "Deal four cards.\n";
+        }
         return os;
     }
 };
@@ -97,18 +98,18 @@ struct Board {
     std::array<Pile, 4> piles{};
     std::uint8_t card_idx = 0;
 
-    Board(std::uint64_t seed = 0) { reset(seed); }
+    Board(std::uint64_t seed) { reset(seed); }
 
-    void reset(std::uint64_t seed = 0) {
+    void reset(std::uint64_t seed) {
         for (auto& p : piles) p.clear();
-        deck.reset();
         deck.shuffle(seed);
         card_idx = 0;
     }
 
     constexpr bool can_deal() const { return card_idx < 52; }
     int score() const {
-        int score = 52 - card_idx - 4;
+        if (can_deal()) return 100;
+        int score = -4;
         for (auto& p : piles) {
             score += p.size();
         }
@@ -171,7 +172,7 @@ struct Board {
     friend std::ostream& operator<<(std::ostream& os, const Board& b) {
         std::size_t h = 0;
         for (int i = 0; i < 4; ++i) h = std::max(h, b.piles[i].size());
-        os << "-----------------\n";
+        os << "Board state:\n-----------------\n";
         for (std::size_t row = 0; row < h; ++row) {
             for (int i = 0; i < 4; ++i) {
                 if (b.piles[i].size() > row) os << b.piles[i][row] << "   ";
@@ -180,7 +181,7 @@ struct Board {
             os << '\n';
         }
         os << "-----------------\n";
-        os << "Card index: " << static_cast<int>(b.card_idx) << "/52\n";
+        os << "Cards left: " << 52 - int(b.card_idx) << "/52\n";
         os << "Current score: " << b.score() << "\n";
         MoveBuff moves;
         b.legal_moves(moves);
@@ -192,27 +193,56 @@ struct Board {
     }
 };
 
-int solve_score(Board board) {
-    MoveBuff moves;
-    board.legal_moves(moves);
+void solve_score(Board& board, std::vector<Move>& path, std::vector<Move>& best_path, int& best_score, MoveBuff& moves) {
     if (moves.size() == 0) {
-        return board.score();
-    }
-    for (std::size_t i = 0; i < moves.size(); ++i) {
-        if (moves[i].to == -1 && moves[i].from != -1) {
-            board.move(moves[i].from, moves[i].to);
-            board.legal_moves(moves);
-            i = -1;
+        int s = board.score();
+        if (s < best_score) {
+            best_score = s;
+            best_path = path;
         }
+        return;
     }
-    int min_score = board.score();
     for (auto& m : moves) {
         Board copy = board;
         copy.move(m.from, m.to);
-        min_score = std::min(min_score, solve_score(copy));
-        if (min_score == 0) return 0;
+        path.push_back(m);
+        int ctr = 1;
+        MoveBuff copy_moves;
+        copy.legal_moves(copy_moves);
+        for (std::size_t i = 0; i < copy_moves.size(); ++i) {
+            if (copy_moves[i].to == -1 && copy_moves[i].from != -1) {
+                path.emplace_back(copy_moves[i].from, copy_moves[i].to);
+                copy.move(copy_moves[i].from, copy_moves[i].to);
+                copy.legal_moves(copy_moves);
+                i = -1;
+                ctr++;
+            }
+        }
+        solve_score(copy, path, best_path, best_score, copy_moves);
+        if (best_score == 0) return;
+        path.resize(path.size() - ctr);
     }
-    return min_score;
+}
+
+int solve(std::uint64_t seed, bool print = false) {
+    std::vector<Move> best_path;
+    std::vector<Move> path;
+    Board board(seed);
+    best_path.reserve(64);
+    path.reserve(64);
+    int best_score = 1000;
+    MoveBuff moves;
+    board.legal_moves(moves);
+    solve_score(board, path, best_path, best_score, moves);
+    if (print) {
+        board.reset(seed);
+        for (auto& p : best_path) {
+            std::cout << board << "Applying move: " << p << "\n";
+            board.move(p.from, p.to);
+        }
+        std::cout << board << "\n";
+    }
+    return best_score;
 }
 
 int main() {
@@ -220,8 +250,8 @@ int main() {
     int score = 0;
     int finished_games = 0;
     for (int i = 1; i <= games; ++i) {
-        int tc = solve_score(Board(i));
         std::cout << i << "\n";
+        int tc = solve(i, false);
         if (tc == 0) finished_games++;
         score += tc;
     }
