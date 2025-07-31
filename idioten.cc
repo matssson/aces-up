@@ -6,26 +6,29 @@
 #include <random>
 #include <vector>
 
+constexpr int N_RANKS {13};
+constexpr int N_SUITS {4};
+constexpr int N_PILES {4};
+constexpr int N_CARDS {N_RANKS * N_SUITS};
+constexpr char RANKS[N_RANKS]{ '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A' };
+constexpr char SUITS[N_SUITS]{ 'S', 'H', 'D', 'C' };
+constexpr std::int8_t M_EMPTY {-1};
+
 struct Card {
     std::uint8_t id;
     constexpr Card(const std::uint8_t id_ = 0) : id{id_} {}
-    constexpr std::uint8_t suit() const { return id / 13; }
-    constexpr std::uint8_t rank() const { return id % 13; }
-
+    constexpr std::uint8_t suit() const { return id / N_RANKS; }
+    constexpr std::uint8_t rank() const { return id % N_RANKS; }
     friend std::ostream& operator<<(std::ostream& os, const Card& c) {
-        static constexpr char RANKS[13]{
-            '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'
-        };
-        static constexpr char SUITS[4]{ 'S', 'H', 'D', 'C' };
         return os << RANKS[c.rank()] << SUITS[c.suit()];
     }
 };
 
 struct Deck {
-    std::array<Card, 52> cards{};
+    std::array<Card, N_CARDS> cards{};
     constexpr Deck() { reset(); }
     constexpr void reset() {
-        for (std::uint8_t i = 0; i < 52; ++i) cards[i] = Card{i};
+        for (std::uint8_t i = 0; i < N_CARDS; ++i) cards[i] = Card{i};
     }
 
     void shuffle(const std::uint64_t seed) {
@@ -36,16 +39,16 @@ struct Deck {
     }
 
     friend std::ostream& operator<<(std::ostream& os, const Deck& d) {
-        for (std::size_t i = 0; i < 52; ++i) {
+        for (std::size_t i = 0; i < N_CARDS; ++i) {
             os << d.cards[i];
-            os << (((i + 1) % 13) ? ' ' : '\n');
+            os << (((i + 1) % N_RANKS) ? ' ' : '\n');
         }
         return os;
     }
 };
 
 struct Pile {
-    std::array<Card, 13> data{};
+    std::array<Card, N_RANKS> data{};
     std::uint8_t sz = 0;
 
     bool empty() const { return sz == 0; }
@@ -54,19 +57,19 @@ struct Pile {
     void push_back(Card c) { data[sz++] = c; }
     void pop_back() { --sz; }
     const Card& operator[](std::size_t i) const { return data[i]; }
-    void clear() noexcept { sz = 0; }
+    void clear() { sz = 0; }
 };
 
 struct Move {
-    std::int8_t from = -1;
-    std::int8_t to = -1;
+    std::int8_t from = M_EMPTY;
+    std::int8_t to = M_EMPTY;
     constexpr Move() = default;
     constexpr Move(std::int8_t f, std::int8_t t) : from{f}, to{t} {}
 
     friend std::ostream& operator<<(std::ostream& os, const Move& m) {
-        if (m.to != -1) {
+        if (m.to != M_EMPTY) {
             os << "Move from pile " << int(m.from) + 1 << " to pile " << int(m.to) + 1 << ".\n";
-        } else if (m.from != -1) {
+        } else if (m.from != M_EMPTY) {
             os << "Discard from pile " << int(m.from) + 1 << ".\n";
         } else {
             os << "Deal four cards.\n";
@@ -89,13 +92,13 @@ struct MoveBuff {
     const Move& operator[](std::size_t i) const { return v[i]; }
 
     using iterator = Move*;
-    iterator begin() noexcept { return v; }
-    iterator end() noexcept { return v + sz; }
+    iterator begin() { return v; }
+    iterator end() { return v + sz; }
 };
 
 struct Board {
     Deck deck;
-    std::array<Pile, 4> piles{};
+    std::array<Pile, N_PILES> piles{};
     std::uint8_t card_idx = 0;
 
     Board(std::uint64_t seed) { reset(seed); }
@@ -106,31 +109,31 @@ struct Board {
         card_idx = 0;
     }
 
-    constexpr bool can_deal() const { return card_idx < 52; }
+    constexpr bool can_deal() const { return card_idx < N_CARDS; }
     int score() const {
         if (can_deal()) return 100;
         int score = -4;
-        for (auto& p : piles) {
+        for (const auto& p : piles) {
             score += p.size();
         }
         return score;
     }
     void deal_four() {
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < N_PILES; ++i) {
             piles[i].push_back(deck.cards[card_idx++]);
         }
     }
     void move_to_empty(std::int8_t from, std::int8_t to) {
-        auto c = piles[from].back();
-        piles[from].pop_back();
+        const auto c = piles[from].back();
         piles[to].push_back(c);
+        piles[from].pop_back();
     }
     void discard(std::int8_t from) { piles[from].pop_back(); }
 
     void move(std::int8_t from, std::int8_t to) {
-        if (to != -1) {
+        if (to != M_EMPTY) {
             move_to_empty(from, to);
-        } else if (from != -1) {
+        } else if (from != M_EMPTY) {
             discard(from);
         } else {
             deal_four();
@@ -139,10 +142,10 @@ struct Board {
 
     void legal_moves(MoveBuff& moves) const {
         moves.clear();
-        struct Top { std::int8_t pile = -1; Card c{}; };
-        Top top_cards[4];
-        std::int8_t empty_pile = -1;
-        for (std::int8_t i = 0; i < 4; ++i) {
+        struct Top { std::int8_t pile = M_EMPTY; Card c{}; };
+        Top top_cards[N_PILES];
+        std::int8_t empty_pile = M_EMPTY;
+        for (std::int8_t i = 0; i < N_PILES; ++i) {
             if (!piles[i].empty()) {
                 top_cards[i].pile = i;
                 top_cards[i].c = piles[i].back();
@@ -151,42 +154,42 @@ struct Board {
             }
         }
 
-        std::uint8_t maxRankBySuit[4] = { 0, 0, 0, 0 };
-        std::uint8_t countBySuit[4] = { 0, 0, 0, 0 };
-        for (auto& t : top_cards) if (t.pile != -1) {
+        std::uint8_t maxRankBySuit[N_SUITS] = { 0, 0, 0, 0 };
+        std::uint8_t countBySuit[N_SUITS] = { 0, 0, 0, 0 };
+        for (const auto& t : top_cards) if (t.pile != M_EMPTY) {
             maxRankBySuit[t.c.suit()] = std::max(maxRankBySuit[t.c.suit()], t.c.rank());
             ++countBySuit[t.c.suit()];
         }
-        for (auto& t : top_cards) if (t.pile != -1) {
+        for (const auto& t : top_cards) if (t.pile != M_EMPTY) {
             if (countBySuit[t.c.suit()] >= 2 && t.c.rank() < maxRankBySuit[t.c.suit()]) {
-                moves.emplace_back(t.pile, -1);
+                moves.emplace_back(t.pile, M_EMPTY);
             }
-            if (empty_pile != -1 && piles[t.pile].size() > 1) {
+            if (empty_pile != M_EMPTY && piles[t.pile].size() > 1) {
                 moves.emplace_back(t.pile, empty_pile);
             }
         }
 
-        if (can_deal()) { moves.emplace_back(-1, -1); }
+        if (can_deal()) { moves.emplace_back(M_EMPTY, M_EMPTY); }
     }
 
     friend std::ostream& operator<<(std::ostream& os, const Board& b) {
         std::size_t h = 0;
-        for (int i = 0; i < 4; ++i) h = std::max(h, b.piles[i].size());
+        for (int i = 0; i < N_PILES; ++i) h = std::max(h, b.piles[i].size());
         os << "Board state:\n-----------------\n";
         for (std::size_t row = 0; row < h; ++row) {
-            for (int i = 0; i < 4; ++i) {
+            for (int i = 0; i < N_PILES; ++i) {
                 if (b.piles[i].size() > row) os << b.piles[i][row] << "   ";
                 else os << "     ";
             }
             os << '\n';
         }
         os << "-----------------\n";
-        os << "Cards left: " << 52 - int(b.card_idx) << "/52\n";
+        os << "Cards left: " << N_CARDS - int(b.card_idx) << "/" << N_CARDS << "\n";
         os << "Current score: " << b.score() << "\n";
         MoveBuff moves;
         b.legal_moves(moves);
         os << "Legal moves:\n";
-        for (auto& m : moves) {
+        for (const auto& m : moves) {
             os << m;
         }
         return os;
@@ -195,14 +198,14 @@ struct Board {
 
 void solve_score(Board& board, std::vector<Move>& path, std::vector<Move>& best_path, int& best_score, MoveBuff& moves) {
     if (moves.size() == 0) {
-        int s = board.score();
+        const int s = board.score();
         if (s < best_score) {
             best_score = s;
             best_path = path;
         }
         return;
     }
-    for (auto& m : moves) {
+    for (const auto& m : moves) {
         Board copy = board;
         copy.move(m.from, m.to);
         path.push_back(m);
@@ -210,7 +213,7 @@ void solve_score(Board& board, std::vector<Move>& path, std::vector<Move>& best_
         MoveBuff copy_moves;
         copy.legal_moves(copy_moves);
         for (std::size_t i = 0; i < copy_moves.size(); ++i) {
-            if (copy_moves[i].to == -1 && copy_moves[i].from != -1) {
+            if (copy_moves[i].to == M_EMPTY && copy_moves[i].from != M_EMPTY) {
                 path.emplace_back(copy_moves[i].from, copy_moves[i].to);
                 copy.move(copy_moves[i].from, copy_moves[i].to);
                 copy.legal_moves(copy_moves);
@@ -236,7 +239,7 @@ int solve(std::uint64_t seed, bool print = false) {
     solve_score(board, path, best_path, best_score, moves);
     if (print) {
         board.reset(seed);
-        for (auto& p : best_path) {
+        for (const auto& p : best_path) {
             std::cout << board << "Applying move: " << p << "\n";
             board.move(p.from, p.to);
         }
