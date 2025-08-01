@@ -1,9 +1,11 @@
-#include <array>
 #include <algorithm>
+#include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <iostream>
 #include <random>
+#include <thread>
 #include <vector>
 
 constexpr int N_RANKS {13};
@@ -249,16 +251,37 @@ int solve(std::uint64_t seed, bool print = false) {
 }
 
 int main() {
-    int games = 1000;
-    int score = 0;
-    int finished_games = 0;
-    for (int i = 1; i <= games; ++i) {
-        std::cout << i << "\n";
-        int tc = solve(i, false);
-        if (tc == 0) finished_games++;
-        score += tc;
+    int n_games = 8000;
+    std::atomic<int> total_score = 0;
+    std::atomic<int> finished_games = 0;
+
+    const int n_threads = std::max(1u, std::thread::hardware_concurrency());
+    const int chunk = (n_games + n_threads - 1) / n_threads;
+
+    std::vector<std::thread> threads;
+    threads.reserve(n_threads);
+
+    for (int t = 0; t < n_threads; ++t) {
+        const int start = t * chunk;
+        if (start >= n_games) break;
+        const int end = std::min(n_games, start + chunk);
+
+        threads.emplace_back([&, start, end] {
+            int local_sum = 0;
+            int local_finished = 0;
+
+            for (int seed = start; seed < end; ++seed) {
+                const int tc = solve(seed, false);
+                local_sum += tc;
+                if (tc == 0) ++local_finished;
+            }
+
+            total_score += local_sum;
+            finished_games += local_finished;
+        });
     }
+    for (auto& t : threads) t.join();
     std::cout << finished_games << "\n";
-    std::cout << double(score)/double(games) << "\n";
+    std::cout << double(total_score)/double(n_games) << "\n";
     return 0;
 }
