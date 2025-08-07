@@ -1,20 +1,19 @@
 #include <algorithm>
 #include <array>
-#include <atomic>
-#include <chrono>
 #include <cstdint>
+#include <fstream>
 #include <iostream>
 #include <random>
 #include <thread>
 #include <vector>
 
-constexpr int N_RANKS {13};
-constexpr int N_SUITS {4};
-constexpr int N_PILES {4};
-constexpr int N_CARDS {N_RANKS * N_SUITS};
+constexpr int N_RANKS = 13;
+constexpr int N_SUITS = 4;
+constexpr int N_PILES = 4;
+constexpr int N_CARDS = N_RANKS * N_SUITS;
 constexpr char RANKS[N_RANKS]{ '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A' };
 constexpr char SUITS[N_SUITS]{ 'S', 'H', 'D', 'C' };
-constexpr std::int8_t M_EMPTY {-1};
+constexpr std::int8_t M_EMPTY = -1;
 
 struct Card {
     std::uint8_t id;
@@ -34,9 +33,8 @@ struct Deck {
     }
 
     void shuffle(const std::uint64_t seed) {
-        std::mt19937_64 rng;
         reset();
-        rng.seed(seed);
+        std::mt19937_64 rng{seed};
         std::shuffle(cards.begin(), cards.end(), rng);
     }
 
@@ -115,9 +113,7 @@ struct Board {
     int score() const {
         if (can_deal()) return 100;
         int score = -4;
-        for (const auto& p : piles) {
-            score += p.size();
-        }
+        for (const auto& p : piles) score += p.size();
         return score;
     }
     void deal_four() {
@@ -133,13 +129,9 @@ struct Board {
     void discard(std::int8_t from) { piles[from].pop_back(); }
 
     void move(std::int8_t from, std::int8_t to) {
-        if (to != M_EMPTY) {
-            move_to_empty(from, to);
-        } else if (from != M_EMPTY) {
-            discard(from);
-        } else {
-            deal_four();
-        }
+        if (to != M_EMPTY) move_to_empty(from, to);
+        else if (from != M_EMPTY) discard(from);
+        else deal_four();
     }
 
     void legal_moves(MoveBuff& moves) const {
@@ -191,9 +183,7 @@ struct Board {
         MoveBuff moves;
         b.legal_moves(moves);
         os << "Legal moves:\n";
-        for (const auto& m : moves) {
-            os << m;
-        }
+        for (const auto& m : moves) os << m;
         return os;
     }
 };
@@ -251,13 +241,15 @@ int solve(std::uint64_t seed, bool print = false) {
 }
 
 int main() {
-    int n_games = 8000;
-    std::atomic<int> total_score = 0;
-    std::atomic<int> finished_games = 0;
+    const int n_games = 1'000'000;
+    const int master_seed = 42;
+    std::vector<int> scores(n_games);
+    std::mt19937_64 seed_rng{master_seed};
+    std::vector<std::uint64_t> seeds(n_games);
+    std::generate(seeds.begin(), seeds.end(), [&seed_rng] { return seed_rng(); });
 
     const int n_threads = std::max(1u, std::thread::hardware_concurrency());
     const int chunk = (n_games + n_threads - 1) / n_threads;
-
     std::vector<std::thread> threads;
     threads.reserve(n_threads);
 
@@ -267,21 +259,21 @@ int main() {
         const int end = std::min(n_games, start + chunk);
 
         threads.emplace_back([&, start, end] {
-            int local_sum = 0;
-            int local_finished = 0;
-
-            for (int seed = start; seed < end; ++seed) {
-                const int tc = solve(seed, false);
-                local_sum += tc;
-                if (tc == 0) ++local_finished;
-            }
-
-            total_score += local_sum;
-            finished_games += local_finished;
+            for (int i = start; i < end; ++i) scores[i] = solve(seeds[i], false);
         });
     }
     for (auto& t : threads) t.join();
-    std::cout << finished_games << "\n";
-    std::cout << double(total_score)/double(n_games) << "\n";
+    int max_score = *std::max_element(scores.begin(), scores.end());
+    {
+        std::ofstream res("build/scores.csv");
+        res << "game,score,seed\n";
+        for (int i = 0; i < n_games; ++i) res << i + 1 << ',' << scores[i] << ',' << seeds[i] << '\n';
+
+        std::vector<int> freq(max_score + 1, 0);
+        for (int s : scores) ++freq[s];
+        std::ofstream hist("build/score_histogram.csv");
+        hist << "score,count\n";
+        for (int s = 0; s <= max_score; ++s) hist << s << ',' << freq[s] << '\n';
+    }
     return 0;
 }
