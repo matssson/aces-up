@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2025 Matsson <contact@matsson.org>
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -263,17 +269,17 @@ int main() {
         });
     }
     for (auto& t : threads) t.join();
-    int max_score = *std::max_element(scores.begin(), scores.end());
+    const int max_score = 48;
     {
-        std::ofstream res("build/scores.csv");
-        res << "game,score,seed\n";
-        for (int i = 0; i < n_games; ++i) res << i + 1 << ',' << scores[i] << ',' << seeds[i] << '\n';
+        std::ofstream raw("build/scores_raw.csv");
+        raw << "game,score,seed\n";
+        for (int i = 0; i < n_games; ++i) raw << i + 1 << ',' << scores[i] << ',' << seeds[i] << '\n';
 
         std::vector<int> freq(max_score + 1, 0);
         for (int s : scores) ++freq[s];
-        std::ofstream hist("build/score_histogram.csv");
-        hist << "score,count\n";
-        for (int s = 0; s <= max_score; ++s) hist << s << ',' << freq[s] << '\n';
+        std::ofstream counts("data/score_counts.csv");
+        counts << "score,count\n";
+        for (int s = 0; s <= max_score; ++s) counts << s << ',' << freq[s] << '\n';
     }
     return 0;
 }
