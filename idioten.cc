@@ -16,6 +16,7 @@
 constexpr int N_RANKS = 13;
 constexpr int N_SUITS = 4;
 constexpr int N_PILES = 4;
+constexpr int N_ACES = 4;
 constexpr int N_CARDS = N_RANKS * N_SUITS;
 constexpr char RANKS[N_RANKS]{ '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A' };
 constexpr char SUITS[N_SUITS]{ 'S', 'H', 'D', 'C' };
@@ -123,20 +124,21 @@ struct Board {
         for (const auto& p : piles) score += p.size();
         return score;
     }
-    void deal_four() {
-        for (int i = 0; i < N_PILES; ++i) {
-            piles[i].push_back(deck.cards[card_idx++]);
-        }
-    }
-    void move_to_empty(std::int8_t from, std::int8_t to) {
+
+    void move_to_empty_pile(std::int8_t from, std::int8_t to) {
         const auto c = piles[from].back();
         piles[to].push_back(c);
         piles[from].pop_back();
     }
     void discard(std::int8_t from) { piles[from].pop_back(); }
+    void deal_four() {
+        for (int i = 0; i < N_PILES; ++i) {
+            piles[i].push_back(deck.cards[card_idx++]);
+        }
+    }
 
-    void move(std::int8_t from, std::int8_t to) {
-        if (to != M_EMPTY) move_to_empty(from, to);
+    void apply_move(std::int8_t from, std::int8_t to) {
+        if (to != M_EMPTY) move_to_empty_pile(from, to);
         else if (from != M_EMPTY) discard(from);
         else deal_four();
     }
@@ -195,8 +197,9 @@ struct Board {
     }
 };
 
-void solve_score(Board& board, std::vector<Move>& path, std::vector<Move>& best_path, int& best_score, MoveBuff& moves) {
-    if (moves.size() == 0) {
+void solve_score(const Board& board, const MoveBuff& avail_moves, int& best_score,
+                 std::vector<Move>& path, std::vector<Move>& best_path) {
+    if (avail_moves.size() == 0) {
         const int s = board.score();
         if (s < best_score) {
             best_score = s;
@@ -204,23 +207,23 @@ void solve_score(Board& board, std::vector<Move>& path, std::vector<Move>& best_
         }
         return;
     }
-    for (const auto& m : moves) {
+    for (const auto& m : avail_moves) {
         Board copy = board;
-        copy.move(m.from, m.to);
+        copy.apply_move(m.from, m.to);
         path.push_back(m);
         int ctr = 1;
         MoveBuff copy_moves;
         copy.legal_moves(copy_moves);
-        for (std::size_t i = 0; i < copy_moves.size(); ++i) {
+        for (int i = 0; i < int(copy_moves.size()); ++i) {
             if (copy_moves[i].to == M_EMPTY && copy_moves[i].from != M_EMPTY) {
                 path.emplace_back(copy_moves[i].from, copy_moves[i].to);
-                copy.move(copy_moves[i].from, copy_moves[i].to);
+                copy.apply_move(copy_moves[i].from, copy_moves[i].to);
                 copy.legal_moves(copy_moves);
                 i = -1;
                 ctr++;
             }
         }
-        solve_score(copy, path, best_path, best_score, copy_moves);
+        solve_score(copy, copy_moves, best_score, path, best_path);
         if (best_score == 0) return;
         path.resize(path.size() - ctr);
     }
@@ -229,18 +232,18 @@ void solve_score(Board& board, std::vector<Move>& path, std::vector<Move>& best_
 int solve(std::uint64_t seed, bool print = false) {
     std::vector<Move> best_path;
     std::vector<Move> path;
-    best_path.reserve(64);
-    path.reserve(64);
+    best_path.reserve(80);
+    path.reserve(80);
     Board board(seed);
     int best_score = 1000;
     MoveBuff moves;
     board.legal_moves(moves);
-    solve_score(board, path, best_path, best_score, moves);
+    solve_score(board, moves, best_score, path, best_path);
     if (print) {
         board.reset();
         for (const auto& p : best_path) {
             std::cout << board << "Applying move: " << p << "\n";
-            board.move(p.from, p.to);
+            board.apply_move(p.from, p.to);
         }
         std::cout << board << "\n";
     }
@@ -269,7 +272,7 @@ int main() {
         });
     }
     for (auto& t : threads) t.join();
-    const int max_score = 48;
+    const int max_score = N_CARDS - N_ACES;
     {
         std::ofstream raw("build/scores_raw.csv");
         raw << "game,score,seed\n";
