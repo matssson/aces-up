@@ -9,7 +9,7 @@ Win rate: 23.404% ± 0.165% (Clopper-Pearson w/ 99.99% CI)
 
 ## Rules
 
-Four tableau piles are dealt in batches of four. Whenever two top cards share a suit, discard the lower rank. Any exposed card may be moved to an empty pile. Keep dealing cards until there are no more cards in the deck.
+Four tableau piles are dealt in batches of four. Whenever two top cards share a suit, discard the lower rank. Any exposed card that sits on top of another card may be moved to an empty pile. Keep dealing cards until there are no more cards in the deck.
 
 The game is scored from 0 to 48 depending on how many non-ace cards are left when all legal moves have been exhausted, with a score of zero counting as a win.
 
