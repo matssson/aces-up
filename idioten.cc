@@ -23,10 +23,10 @@ constexpr std::int8_t M_EMPTY = -1;
 
 struct Card {
     std::uint8_t id;
-    constexpr Card(const std::uint8_t id_ = 0) : id{id_} {}
+    constexpr Card(std::uint8_t id_ = 0) : id{id_} {}
     constexpr std::uint8_t suit() const { return id / N_RANKS; }
     constexpr std::uint8_t rank() const { return id % N_RANKS; }
-    friend std::ostream& operator<<(std::ostream& os, const Card& c) {
+    friend std::ostream& operator<<(std::ostream& os, Card c) {
         return os << RANKS[c.rank()] << SUITS[c.suit()];
     }
 };
@@ -34,11 +34,13 @@ struct Card {
 struct Deck {
     std::array<Card, N_CARDS> cards{};
     constexpr Deck() { reset(); }
+    Deck(std::uint64_t seed) { shuffle(seed); }
+
     constexpr void reset() {
         for (std::uint8_t i = 0; i < N_CARDS; ++i) cards[i] = Card{i};
     }
 
-    void shuffle(const std::uint64_t seed) {
+    void shuffle(std::uint64_t seed) {
         reset();
         std::mt19937_64 rng{seed};
         std::shuffle(cards.begin(), cards.end(), rng);
@@ -57,8 +59,8 @@ struct Pile {
     std::array<Card, N_RANKS> data{};
     std::uint8_t sz = 0;
 
-    bool empty() const { return sz == 0; }
-    std::size_t size() const { return sz; }
+    constexpr bool empty() const { return sz == 0; }
+    constexpr std::size_t size() const { return sz; }
     const Card& back() const { return data[sz - 1]; }
     void push_back(Card c) { data[sz++] = c; }
     void pop_back() { --sz; }
@@ -67,9 +69,9 @@ struct Pile {
 };
 
 struct Move {
-    std::int8_t from = M_EMPTY;
-    std::int8_t to = M_EMPTY;
-    constexpr Move() = default;
+    std::int8_t from;
+    std::int8_t to;
+    constexpr Move() : from{M_EMPTY}, to{M_EMPTY} {}
     constexpr Move(std::int8_t f, std::int8_t t) : from{f}, to{t} {}
 
     friend std::ostream& operator<<(std::ostream& os, const Move& m) {
@@ -85,7 +87,7 @@ struct Move {
 };
 
 struct MoveBuff {
-    Move v[6];
+    std::array<Move, 6> v{};
     std::uint8_t sz = 0;
 
     void clear() { sz = 0; }
@@ -94,24 +96,23 @@ struct MoveBuff {
         v[sz].to = to;
         sz++;
     }
-    std::size_t size() const { return sz; }
+    constexpr std::size_t size() const { return sz; }
     const Move& operator[](std::size_t i) const { return v[i]; }
-
-    using iterator = Move*;
-    iterator begin() { return v; }
-    iterator end() { return v + sz; }
+    
+    using const_iterator = const Move*;
+    const_iterator begin() const { return v.data(); }
+    const_iterator end() const { return v.data() + sz; }
 };
 
 struct Board {
-    Deck deck;
+    const Deck deck;
     std::array<Pile, N_PILES> piles{};
     std::uint8_t card_idx = 0;
 
-    Board(std::uint64_t seed) { reset(seed); }
+    Board(std::uint64_t seed) : deck{seed} {}
 
-    void reset(std::uint64_t seed) {
+    void reset() {
         for (auto& p : piles) p.clear();
-        deck.shuffle(seed);
         card_idx = 0;
     }
 
@@ -143,7 +144,7 @@ struct Board {
     void legal_moves(MoveBuff& moves) const {
         moves.clear();
         struct Top { std::int8_t pile = M_EMPTY; Card c{}; };
-        Top top_cards[N_PILES];
+        std::array<Top, N_PILES> top_cards{};
         std::int8_t empty_pile = M_EMPTY;
         for (std::int8_t i = 0; i < N_PILES; ++i) {
             if (!piles[i].empty()) {
@@ -228,15 +229,15 @@ void solve_score(Board& board, std::vector<Move>& path, std::vector<Move>& best_
 int solve(std::uint64_t seed, bool print = false) {
     std::vector<Move> best_path;
     std::vector<Move> path;
-    Board board(seed);
     best_path.reserve(64);
     path.reserve(64);
+    Board board(seed);
     int best_score = 1000;
     MoveBuff moves;
     board.legal_moves(moves);
     solve_score(board, path, best_path, best_score, moves);
     if (print) {
-        board.reset(seed);
+        board.reset();
         for (const auto& p : best_path) {
             std::cout << board << "Applying move: " << p << "\n";
             board.move(p.from, p.to);
@@ -257,15 +258,14 @@ int main() {
     const int n_threads = std::max(1u, std::thread::hardware_concurrency());
     const int chunk = (n_games + n_threads - 1) / n_threads;
     std::vector<std::thread> threads;
-    threads.reserve(n_threads);
 
     for (int t = 0; t < n_threads; ++t) {
         const int start = t * chunk;
         if (start >= n_games) break;
         const int end = std::min(n_games, start + chunk);
 
-        threads.emplace_back([&, start, end] {
-            for (int i = start; i < end; ++i) scores[i] = solve(seeds[i], false);
+        threads.emplace_back([&scores, &seeds, start, end] {
+            for (int i = start; i < end; ++i) scores[i] = solve(seeds[i]);
         });
     }
     for (auto& t : threads) t.join();
@@ -275,7 +275,7 @@ int main() {
         raw << "game,score,seed\n";
         for (int i = 0; i < n_games; ++i) raw << i + 1 << ',' << scores[i] << ',' << seeds[i] << '\n';
 
-        std::vector<int> freq(max_score + 1, 0);
+        std::array<int, max_score + 1> freq{};
         for (int s : scores) ++freq[s];
         std::ofstream counts("data/score_counts.csv");
         counts << "score,count\n";
