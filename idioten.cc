@@ -57,7 +57,7 @@ struct Deck {
 };
 
 struct Pile {
-    std::array<Card, N_RANKS> data{};
+    std::array<Card, N_CARDS/N_PILES> data{};
     std::uint8_t sz = 0;
 
     constexpr bool empty() const { return sz == 0; }
@@ -75,14 +75,14 @@ struct Move {
     constexpr Move() : from{M_EMPTY}, to{M_EMPTY} {}
     constexpr Move(std::int8_t f, std::int8_t t) : from{f}, to{t} {}
 
+    constexpr bool is_move_to_empty_pile() const { return to != M_EMPTY; }
+    constexpr bool is_discard() const { return to == M_EMPTY && from != M_EMPTY; }
+    constexpr bool is_deal_four() const { return to == M_EMPTY && from == M_EMPTY; }
+
     friend std::ostream& operator<<(std::ostream& os, const Move& m) {
-        if (m.to != M_EMPTY) {
-            os << "Move from pile " << int(m.from) + 1 << " to pile " << int(m.to) + 1 << ".\n";
-        } else if (m.from != M_EMPTY) {
-            os << "Discard from pile " << int(m.from) + 1 << ".\n";
-        } else {
-            os << "Deal four cards.\n";
-        }
+        if (m.is_discard()) os << "Discard from pile " << m.from + 1 << ".\n";
+        else if (m.is_deal_four()) os << "Deal four cards.\n";
+        else os << "Move from pile " << m.from + 1 << " to pile " << m.to + 1 << ".\n";
         return os;
     }
 };
@@ -137,9 +137,9 @@ struct Board {
         }
     }
 
-    void apply_move(std::int8_t from, std::int8_t to) {
-        if (to != M_EMPTY) move_to_empty_pile(from, to);
-        else if (from != M_EMPTY) discard(from);
+    void apply_move(const Move& move) {
+        if (move.to != M_EMPTY) move_to_empty_pile(move.from, move.to);
+        else if (move.from != M_EMPTY) discard(move.from);
         else deal_four();
     }
 
@@ -188,7 +188,7 @@ struct Board {
         }
         if (h == 0) os << "\n";
         os << "-----------------\n";
-        os << "Cards left: " << N_CARDS - int(b.card_idx) << "/" << N_CARDS << "\n";
+        os << "Cards left: " << N_CARDS - b.card_idx << "/" << N_CARDS << "\n";
         MoveBuff moves;
         b.legal_moves(moves);
         if (moves.size() == 0) os << "No moves left, final score: " << b.score() << "\n";
@@ -210,18 +210,21 @@ void solve_score(const Board& board, const MoveBuff& avail_moves, int& best_scor
     }
     for (const auto& m : avail_moves) {
         Board copy = board;
-        copy.apply_move(m.from, m.to);
+        copy.apply_move(m);
         path.push_back(m);
-        int ctr = 1;
         MoveBuff copy_moves;
-        copy.legal_moves(copy_moves);
-        for (int i = 0; i < int(copy_moves.size()); ++i) {
-            if (copy_moves[i].to == M_EMPTY && copy_moves[i].from != M_EMPTY) {
-                path.emplace_back(copy_moves[i].from, copy_moves[i].to);
-                copy.apply_move(copy_moves[i].from, copy_moves[i].to);
-                copy.legal_moves(copy_moves);
-                i = -1;
-                ctr++;
+        int ctr = 1;
+        bool has_discarded = true;
+        while (has_discarded) {
+            has_discarded = false;
+            copy.legal_moves(copy_moves);
+            for (std::size_t i = 0; i < copy_moves.size(); ++i) {
+                if (copy_moves[i].is_discard()) {
+                    path.push_back(copy_moves[i]);
+                    copy.apply_move(copy_moves[i]);
+                    has_discarded = true;
+                    ctr++;
+                }
             }
         }
         solve_score(copy, copy_moves, best_score, path, best_path);
@@ -245,7 +248,7 @@ int solve(std::uint64_t seed, bool print = false) {
         for (std::size_t i = 0; i < best_path.size(); ++i) {
             auto p = best_path[i];
             std::cout << "Board state (" << i << " moves)\n" << board << "Applying move: " << p << "\n";
-            board.apply_move(p.from, p.to);
+            board.apply_move(p);
         }
         std::cout << "Board state (" << best_path.size() << " moves)\n" << board;
     }
