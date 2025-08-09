@@ -92,8 +92,9 @@ struct Move {
     }
 };
 
-struct MoveBuff {
-    std::array<Move, 6> v{};
+struct DFSMoveBuff {
+    static constexpr int MAX_MOVES_TO_EMPTY_PLUS_DEAL = 5;
+    std::array<Move, MAX_MOVES_TO_EMPTY_PLUS_DEAL> v{};
     std::uint8_t sz = 0;
 
     void clear() { sz = 0; }
@@ -148,57 +149,41 @@ struct Board {
         else deal_four();
     }
 
-    MoveBuff legal_moves() const {
-        MoveBuff moves{};
+    std::vector<Move> legal_moves() const {
+        std::vector<Move> moves{};
         std::uint8_t max_rank_by_suit[N_SUITS] = { 0, 0, 0, 0 };
-        std::int8_t empty_pile = M_EMPTY;
-
-        for (std::int8_t i = 0; i < N_PILES; ++i) {
-            if (piles[i].empty()) {
-                empty_pile = i;
-                continue;
-            }
+        for (std::int8_t i = 0; i < N_PILES; ++i) if (!piles[i].empty()) {
             auto c = piles[i].back();
             max_rank_by_suit[c.suit()] = std::max(max_rank_by_suit[c.suit()], c.rank());
         }
-
-        for (std::int8_t i = 0; i < N_PILES; ++i) {
-            if (piles[i].empty()) continue;
-            auto c = piles[i].back();
+        for (std::int8_t from = 0; from < N_PILES; ++from) if (!piles[from].empty()) {
+            auto c = piles[from].back();
             if (c.rank() < max_rank_by_suit[c.suit()]) {
-                moves.emplace_back(i, M_EMPTY);
+                moves.emplace_back(from, M_EMPTY);
             }
-            if (empty_pile != M_EMPTY && piles[i].size() > 1) {
-                moves.emplace_back(i, empty_pile);
+            if (piles[from].size() > 1) {
+                for (std::int8_t to = 0; to < N_PILES; ++to) if (piles[to].empty()) {
+                    moves.emplace_back(from, to);
+                }
             }
         }
-
         if (can_deal()) moves.emplace_back(M_EMPTY, M_EMPTY);
         return moves;
     }
 
-    int discard_all(std::vector<Move>& path) {
-        std::uint8_t max_rank_by_suit[N_SUITS] = { 0, 0, 0, 0 };
-        int ctr = 0;
-        int loops = 2;
-        while (loops > 0) {
-            loops--;
-            for (std::int8_t i = 0; i < N_PILES; ++i) {
-                if (piles[i].empty()) continue;
-                auto c = piles[i].back();
-                if (c.rank() < max_rank_by_suit[c.suit()]) {
-                    discard(i);
-                    path.emplace_back(i, M_EMPTY);
-                    ctr++;
-                    loops = 2;
-                    break;
-                } else { max_rank_by_suit[c.suit()] = c.rank(); }
+    DFSMoveBuff legal_non_discards() const {
+        DFSMoveBuff moves{};
+        for (std::int8_t from = 0; from < N_PILES; ++from) if (piles[from].size() > 1) {
+            for (std::int8_t to = 0; to < N_PILES; ++to) if (piles[to].empty()) {
+                moves.emplace_back(from, to);
             }
         }
-        return ctr;
+        if (can_deal()) moves.emplace_back(M_EMPTY, M_EMPTY);
+        return moves;
     }
 
-    void discard_all() {
+    template<bool TRACE>
+    void discard_all(std::vector<Move>* path) {
         std::uint8_t max_rank_by_suit[N_SUITS] = { 0, 0, 0, 0 };
         int loops = 2;
         while (loops > 0) {
@@ -207,6 +192,7 @@ struct Board {
                 if (piles[i].empty()) continue;
                 auto c = piles[i].back();
                 if (c.rank() < max_rank_by_suit[c.suit()]) {
+                    if constexpr (TRACE) path->emplace_back(i, M_EMPTY);
                     discard(i);
                     loops = 2;
                     break;
@@ -237,52 +223,43 @@ struct Board {
     }
 };
 
-void solve_score_debug(const Board& board, int& best_score,
-                       std::vector<Move>& path, std::vector<Move>& best_path) {
-    const auto avail_moves = board.legal_moves();
+template<bool TRACE>
+void solve_dfs(const Board& board, int& best_score,
+               std::vector<Move>* path, std::vector<Move>* best_path) {
+    const auto avail_moves = board.legal_non_discards();
     if (avail_moves.size() == 0) {
         const int s = board.score();
         if (s < best_score) {
+            if constexpr (TRACE) *best_path = *path;
             best_score = s;
-            best_path = path;
         }
         return;
     }
     for (const auto& m : avail_moves) {
         Board copy = board;
-        copy.apply_move(m);
-        path.push_back(m);
-        int ctr = 1 + copy.discard_all(path);
-        solve_score_debug(copy, best_score, path, best_path);
+        if constexpr (TRACE) {
+            const auto checkpoint = path->size();
+            path->push_back(m);
+            copy.apply_move(m);
+            copy.discard_all<TRACE>(path);
+            solve_dfs<TRACE>(copy, best_score, path, best_path);
+            path->resize(checkpoint);
+        } else {
+            copy.apply_move(m);
+            copy.discard_all<TRACE>(path);
+            solve_dfs<TRACE>(copy, best_score, path, best_path);
+        }
         if (best_score == 0) return;
-        path.resize(path.size() - ctr);
     }
 }
 
-int solve_score(const Board& board) {
-    const auto avail_moves = board.legal_moves();
-    int best_score = board.score();
-    if (avail_moves.size() == 0) return best_score;
-    for (const auto& m : avail_moves) {
-        Board copy = board;
-        copy.apply_move(m);
-        copy.discard_all();
-        best_score = std::min(best_score, solve_score(copy));
-        if (best_score == 0) return 0;
-    }
-    return best_score;
-}
-
-int solve_debug(std::uint64_t seed, bool print = false) {
-    std::vector<Move> path;
-    std::vector<Move> best_path;
-    path.reserve(80);
-    best_path.reserve(80);
+int solve_trace(std::uint64_t seed, bool print = true) {
+    std::vector<Move> path, best_path;
+    path.reserve(80); best_path.reserve(80);
     Board board(seed);
     int best_score = 1000;
-    solve_score_debug(board, best_score, path, best_path);
+    solve_dfs<true>(board, best_score, &path, &best_path);
     if (print) {
-        board.reset();
         for (std::size_t i = 0; i < best_path.size(); ++i) {
             auto p = best_path[i];
             std::cout << "Board state (" << i << " moves)\n" << board << "Applying move: " << p << "\n";
@@ -295,7 +272,9 @@ int solve_debug(std::uint64_t seed, bool print = false) {
 
 int solve(std::uint64_t seed) {
     Board board(seed);
-    return solve_score(board);
+    int best_score = 1000;
+    solve_dfs<false>(board, best_score, nullptr, nullptr);
+    return best_score;
 }
 
 int main() {

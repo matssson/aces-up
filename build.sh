@@ -8,4 +8,4 @@ clang++ -std=c++23 -O3 -DNDEBUG -march=native -mcpu=native -pthread \
 -Wall -Wextra -pedantic \
 idioten.cc -o build/idioten
 
-./build/idioten
+time ./build/idioten
