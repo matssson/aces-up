@@ -18,17 +18,17 @@ Legal moves:
     Discard from pile 1.
     Discard from pile 4.
     Deal four cards.
-Applying move: Discard from pile 1.
+Applying move: Discard from pile 4.
 
 Board state (2 moves)
 -----------------
-     KD   2H   5D   
+QD   KD   2H        
 -----------------
 Cards left: 48/52
 Legal moves:
-    Discard from pile 4.
+    Discard from pile 1.
     Deal four cards.
-Applying move: Discard from pile 4.
+Applying move: Discard from pile 1.
 
 Board state (3 moves)
 -----------------
@@ -102,19 +102,21 @@ Legal moves:
     Discard from pile 1.
     Discard from pile 3.
     Deal four cards.
-Applying move: Discard from pile 1.
+Applying move: Discard from pile 3.
 
 Board state (10 moves)
 -----------------
-9S   KD   8C   4H   
-     9C        8S   
+9S   KD        4H   
+4C   9C        8S   
 -----------------
 Cards left: 40/52
 Legal moves:
-    Discard from pile 3.
-    Discard from pile 4.
+    Discard from pile 1.
+    Move from pile 1 to pile 3.
+    Move from pile 2 to pile 3.
+    Move from pile 4 to pile 3.
     Deal four cards.
-Applying move: Discard from pile 3.
+Applying move: Discard from pile 1.
 
 Board state (11 moves)
 -----------------
@@ -816,32 +818,28 @@ Cards left: 0/52
 Legal moves:
     Discard from pile 2.
     Discard from pile 3.
-Applying move: Discard from pile 2.
+Applying move: Discard from pile 3.
 
 Board state (69 moves)
 -----------------
-AH        AS   AC   
-KS        3S   AD   
------------------
-Cards left: 0/52
-Legal moves:
-    Move from pile 1 to pile 2.
-    Discard from pile 3.
-    Move from pile 3 to pile 2.
-    Move from pile 4 to pile 2.
-Applying move: Discard from pile 3.
-
-Board state (70 moves)
------------------
-AH        AS   AC   
+AH   KD   AS   AC   
 KS             AD   
 -----------------
 Cards left: 0/52
 Legal moves:
     Discard from pile 1.
-    Move from pile 1 to pile 2.
-    Move from pile 4 to pile 2.
+    Discard from pile 2.
 Applying move: Discard from pile 1.
+
+Board state (70 moves)
+-----------------
+AH   KD   AS   AC   
+               AD   
+-----------------
+Cards left: 0/52
+Legal moves:
+    Discard from pile 2.
+Applying move: Discard from pile 2.
 
 Board state (71 moves)
 -----------------
