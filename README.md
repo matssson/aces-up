@@ -23,9 +23,9 @@ This can be thought of as the *thoughtful* variant of the game, where the entire
 
 I hadn't found any previous results on the winnability of Aces Up, except for the Wikipedia quote that ["Winning chances with good play are about 1 in 43"](https://en.wikipedia.org/wiki/Aces_Up).
 
-For any given shuffle however, the solvability is a lot higher, namely 23.404% ± 0.165% using Clopper-Pearson (exact) with a 99.99% confidence interval (23.239% - 23.569%).
+For any given shuffle however, the solvability is a lot higher, namely 23.404% ± 0.165% using Clopper-Pearson (exact) with a 99.99% confidence interval (23.239%&ndash;23.569%).
 
-Running the search for n = 1,000,000 games takes a bit under an hour on my Macbook, and the worst score found was 42 (with seed = 1635014440093633329).
+Running the search for n = 1,000,000 games takes around 40 minutes on my Macbook, and the worst score found was 42 (with seed = 1635014440093633329).
 
 ![Distribution of scores (n = 1,000,000)](data/score_distribution.png)
 *Figure&nbsp;1. Distribution of scores (n = 1,000,000).*

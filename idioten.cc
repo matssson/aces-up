@@ -13,20 +13,26 @@
 #include <thread>
 #include <vector>
 
-constexpr int N_RANKS = 13;
-constexpr int N_SUITS = 4;
-constexpr int N_PILES = 4;
-constexpr int N_ACES = 4;
+constexpr int N_RANKS = 13, N_SUITS = 4, N_PILES = 4, N_ACES = 4;
 constexpr int N_CARDS = N_RANKS * N_SUITS;
-constexpr char RANKS[N_RANKS]{ '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A' };
-constexpr char SUITS[N_SUITS]{ 'S', 'H', 'D', 'C' };
+constexpr int MAX_SCORE = N_CARDS - N_ACES;
 constexpr std::int8_t M_EMPTY = -1;
 
 struct Card {
-    std::uint8_t id;
-    constexpr Card(std::uint8_t id_ = 0) : id{id_} {}
-    constexpr std::uint8_t suit() const { return id / N_RANKS; }
-    constexpr std::uint8_t rank() const { return id % N_RANKS; }
+    std::uint8_t packed_id;
+    static constexpr char SUITS[N_SUITS] = { 'S', 'H', 'D', 'C' };
+    static constexpr char RANKS[N_RANKS] = { '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A' };
+    static constexpr std::uint8_t LUT[N_CARDS] = {
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C,
+        0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C,
+        0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C
+    };
+    static constexpr std::uint8_t SUIT_SHIFT = 4;
+    static constexpr std::uint8_t RANK_MASK = 0x0F;
+    constexpr Card(std::uint8_t id = 0) : packed_id{LUT[id]} {}
+    constexpr std::uint8_t suit() const { return packed_id >> SUIT_SHIFT; }
+    constexpr std::uint8_t rank() const { return packed_id & RANK_MASK; }
     friend std::ostream& operator<<(std::ostream& os, Card c) {
         return os << RANKS[c.rank()] << SUITS[c.suit()];
     }
@@ -72,8 +78,7 @@ struct Pile {
 struct Move {
     std::int8_t from;
     std::int8_t to;
-    constexpr Move() : from{M_EMPTY}, to{M_EMPTY} {}
-    constexpr Move(std::int8_t f, std::int8_t t) : from{f}, to{t} {}
+    constexpr Move(std::int8_t f = M_EMPTY, std::int8_t t = M_EMPTY) : from{f}, to{t} {}
 
     constexpr bool is_move_to_empty_pile() const { return to != M_EMPTY; }
     constexpr bool is_discard() const { return to == M_EMPTY && from != M_EMPTY; }
@@ -119,8 +124,8 @@ struct Board {
 
     constexpr bool can_deal() const { return card_idx < N_CARDS; }
     int score() const {
-        if (can_deal()) return 100;
-        int score = -4;
+        if (can_deal()) return MAX_SCORE + 1;
+        int score = -N_ACES;
         for (const auto& p : piles) score += p.size();
         return score;
     }
@@ -276,18 +281,19 @@ int main() {
             for (int i = start; i < end; ++i) scores[i] = solve(seeds[i]);
         });
     }
-    for (auto& t : threads) t.join();
-    const int max_score = N_CARDS - N_ACES;
+    for (auto& t : threads) {
+        t.join();
+    }
     {
         std::ofstream raw("build/scores_raw.csv");
         raw << "game,score,seed\n";
         for (int i = 0; i < n_games; ++i) raw << i + 1 << ',' << scores[i] << ',' << seeds[i] << '\n';
 
-        std::array<int, max_score + 1> freq{};
+        std::array<int, MAX_SCORE + 1> freq{};
         for (int s : scores) ++freq[s];
         std::ofstream counts("data/score_counts.csv");
         counts << "score,count\n";
-        for (int s = 0; s <= max_score; ++s) counts << s << ',' << freq[s] << '\n';
+        for (int s = 0; s <= MAX_SCORE; ++s) counts << s << ',' << freq[s] << '\n';
     }
     return 0;
 }
