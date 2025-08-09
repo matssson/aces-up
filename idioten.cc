@@ -178,7 +178,7 @@ struct Board {
     friend std::ostream& operator<<(std::ostream& os, const Board& b) {
         std::size_t h = 0;
         for (int i = 0; i < N_PILES; ++i) h = std::max(h, b.piles[i].size());
-        os << "Board state:\n-----------------\n";
+        os << "-----------------\n";
         for (std::size_t row = 0; row < h; ++row) {
             for (int i = 0; i < N_PILES; ++i) {
                 if (b.piles[i].size() > row) os << b.piles[i][row] << "   ";
@@ -186,13 +186,14 @@ struct Board {
             }
             os << '\n';
         }
+        if (h == 0) os << "\n";
         os << "-----------------\n";
         os << "Cards left: " << N_CARDS - int(b.card_idx) << "/" << N_CARDS << "\n";
-        os << "Current score: " << b.score() << "\n";
         MoveBuff moves;
         b.legal_moves(moves);
-        os << "Legal moves:\n";
-        for (const auto& m : moves) os << m;
+        if (moves.size() == 0) os << "No moves left, final score: " << b.score() << "\n";
+        else os << "Legal moves:\n";
+        for (const auto& m : moves) os << "    " << m;
         return os;
     }
 };
@@ -241,11 +242,12 @@ int solve(std::uint64_t seed, bool print = false) {
     solve_score(board, moves, best_score, path, best_path);
     if (print) {
         board.reset();
-        for (const auto& p : best_path) {
-            std::cout << board << "Applying move: " << p << "\n";
+        for (std::size_t i = 0; i < best_path.size(); ++i) {
+            auto p = best_path[i];
+            std::cout << "Board state (" << i << " moves)\n" << board << "Applying move: " << p << "\n";
             board.apply_move(p.from, p.to);
         }
-        std::cout << board << "\n";
+        std::cout << "Board state (" << best_path.size() << " moves)\n" << board;
     }
     return best_score;
 }

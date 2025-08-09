@@ -32,6 +32,8 @@ Running the search for n = 1,000,000 games takes a bit under an hour on my Macbo
 
 Note that a score of 3 is less likely than a score of both 2 and 4. Other than that the distribution is generally decreasing, with a score of 0 being the most common.
 
+For example runs see [/examples](examples).
+
 ## License
 
 This project is licensed under the MIT License - see [`LICENSE`](LICENSE).

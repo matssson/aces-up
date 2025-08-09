@@ -31,8 +31,8 @@ except Exception as err:
   sys.exit(err)
 df = df.sort_values("score")
 
-total_runs = int(df["count"].sum())
-solved_games = int(df.loc[df["score"] == 0, "count"].sum())
+total_runs = df["count"].sum()
+solved_games = df.loc[df["score"] == 0, "count"].sum()
 
 print(f"Total number of games: {total_runs}")
 print(f"Number of solved games: {solved_games}")
@@ -50,7 +50,7 @@ ax.yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
 ax.set_ylim(0, 0.25)
 ax.xaxis.set_major_locator(mtick.MultipleLocator(4))
 ax.xaxis.set_minor_locator(mtick.MultipleLocator(1))
-ax.set_xlim(-1, 49)
+ax.set_xlim(-1, 1 + df["score"].max())
 
 plt.xlabel("Score")
 plt.title(f"Distribution of scores (n = {total_runs:,})")
