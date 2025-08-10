@@ -10,13 +10,17 @@
 #include <fstream>
 #include <iostream>
 #include <random>
+#include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 constexpr int N_RANKS = 13, N_SUITS = 4, N_PILES = 4, N_ACES = 4;
 constexpr int N_CARDS = N_RANKS * N_SUITS;
 constexpr int MAX_SCORE = N_CARDS - N_ACES;
 constexpr int M_EMPTY = -1;
+
+using TranspositionTable = std::unordered_map<std::string, int>;
 
 struct Card {
     std::uint8_t packed_id;
@@ -71,8 +75,8 @@ struct Pile {
     const Card& back() const { return data[sz - 1]; }
     void push_back(Card c) { data[sz++] = c; }
     void pop_back() { --sz; }
-    const Card& operator[](int i) const { return data[i]; }
     void clear() { sz = 0; }
+    const Card& operator[](int i) const { return data[i]; }
 };
 
 struct Move {
@@ -103,7 +107,7 @@ struct DFSMoveBuff {
         v[sz++].to = to;
     }
     constexpr bool empty() const { return sz == 0; }
-    
+
     using const_iterator = const Move*;
     const_iterator begin() const { return v.data(); }
     const_iterator end() const { return v.data() + sz; }
@@ -198,6 +202,20 @@ struct Board {
         }
     }
 
+    constexpr std::string serialize() const {
+        std::string s;
+        s.resize(53);
+        s[0] = static_cast<char>(card_idx);
+        int pos = 1;
+        for (const auto& p : piles) {
+            for (int i = 0; i < N_CARDS/N_PILES; ++i) {
+                if (i < p.size()) s[pos++] = static_cast<char>(p[i].packed_id);
+                else s[pos++] = '_'; // Outside the range of packed_id
+            }
+        }
+        return s;
+    }
+
     friend std::ostream& operator<<(std::ostream& os, const Board& b) {
         int h = 0;
         for (int i = 0; i < N_PILES; ++i) h = std::max(h, b.piles[i].size());
@@ -221,17 +239,12 @@ struct Board {
 };
 
 template<bool TRACE>
-void solve_dfs(const Board& board, int& best_score,
-               std::vector<Move>* path, std::vector<Move>* best_path) {
+int solve_dfs(const Board& board, TranspositionTable& tt, std::vector<Move>* path, std::vector<Move>* best_path) {
     const auto avail_moves = board.legal_non_discards();
-    if (avail_moves.empty()) {
-        const int s = board.score();
-        if (s < best_score) {
-            if constexpr (TRACE) *best_path = *path;
-            best_score = s;
-        }
-        return;
-    }
+    int best_score = board.score();
+    if (avail_moves.empty()) return best_score;
+    const auto board_string = board.serialize();
+    if (tt.contains(board_string)) return tt[board_string];
     for (const auto& m : avail_moves) {
         Board copy = board;
         if constexpr (TRACE) {
@@ -239,23 +252,27 @@ void solve_dfs(const Board& board, int& best_score,
             path->push_back(m);
             copy.apply_move(m);
             copy.discard_all<TRACE>(path);
-            solve_dfs<TRACE>(copy, best_score, path, best_path);
+            int child_score = solve_dfs<TRACE>(copy, tt, path, best_path);
+            if (child_score < best_score) { best_score = child_score; *best_path = *path; }
             path->resize(checkpoint);
         } else {
             copy.apply_move(m);
             copy.discard_all<TRACE>(path);
-            solve_dfs<TRACE>(copy, best_score, path, best_path);
+            int child_score = solve_dfs<TRACE>(copy, tt, path, best_path);
+            if (child_score < best_score) best_score = child_score;
         }
-        if (best_score == 0) return;
+        if (best_score == 0) return best_score;
     }
+    tt[board_string] = best_score;
+    return best_score;
 }
 
 int solve_trace(std::uint64_t seed, bool print = true) {
     std::vector<Move> path, best_path;
     path.reserve(80); best_path.reserve(80);
     Board board(seed);
-    int best_score = 1000;
-    solve_dfs<true>(board, best_score, &path, &best_path);
+    TranspositionTable tt;
+    int best_score = solve_dfs<true>(board, tt, &path, &best_path);
     if (print) {
         int move = 0;
         for (const auto& p : best_path) {
@@ -269,9 +286,8 @@ int solve_trace(std::uint64_t seed, bool print = true) {
 
 int solve(std::uint64_t seed) {
     Board board(seed);
-    int best_score = 1000;
-    solve_dfs<false>(board, best_score, nullptr, nullptr);
-    return best_score;
+    TranspositionTable tt;
+    return solve_dfs<false>(board, tt, nullptr, nullptr);
 }
 
 int main() {
