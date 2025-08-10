@@ -243,7 +243,7 @@ int solve_dfs(const Board& board, TranspositionTable& tt, std::vector<Move>* pat
     const auto avail_moves = board.legal_non_discards();
     int best_score = board.score();
     if (avail_moves.empty()) return best_score;
-    const auto board_string = board.serialize();
+    auto board_string = board.serialize();
     if (tt.contains(board_string)) return tt[board_string];
     for (const auto& m : avail_moves) {
         Board copy = board;
@@ -263,7 +263,7 @@ int solve_dfs(const Board& board, TranspositionTable& tt, std::vector<Move>* pat
         }
         if (best_score == 0) return best_score;
     }
-    tt[board_string] = best_score;
+    tt.try_emplace(std::move(board_string), best_score);
     return best_score;
 }
 
@@ -284,9 +284,9 @@ int solve_trace(std::uint64_t seed, bool print = true) {
     return best_score;
 }
 
-int solve(std::uint64_t seed) {
+int solve(std::uint64_t seed, TranspositionTable& tt) {
     Board board(seed);
-    TranspositionTable tt;
+    tt.clear();
     return solve_dfs<false>(board, tt, nullptr, nullptr);
 }
 
@@ -308,7 +308,8 @@ int main() {
         const int end = std::min(n_games, start + chunk);
 
         threads.emplace_back([&scores, &seeds, start, end] {
-            for (int i = start; i < end; ++i) scores[i] = solve(seeds[i]);
+            TranspositionTable tt;
+            for (int i = start; i < end; ++i) scores[i] = solve(seeds[i], tt);
         });
     }
     for (auto& t : threads) {
@@ -317,7 +318,9 @@ int main() {
     {
         std::ofstream raw("build/scores_raw.csv");
         raw << "game,score,seed\n";
-        for (int i = 0; i < n_games; ++i) raw << i + 1 << ',' << scores[i] << ',' << seeds[i] << '\n';
+        for (int i = 0; i < n_games; ++i) if (scores[i] >= 40) {
+            raw << i + 1 << ',' << scores[i] << ',' << seeds[i] << '\n';
+        }
 
         std::array<int, MAX_SCORE + 1> freq{};
         for (int s : scores) ++freq[s];
