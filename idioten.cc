@@ -173,10 +173,18 @@ struct Board {
         return moves;
     }
 
-    DFSMoveBuff legal_non_discards() const {
+    DFSMoveBuff pruned_legal_non_discards() const {
         DFSMoveBuff moves{};
         for (int from = 0; from < N_PILES; ++from) if (piles[from].size() > 1) {
             for (int to = 0; to < N_PILES; ++to) if (piles[to].empty()) {
+                const auto size = piles[from].size();
+                const auto c1 = piles[from][size - 1];
+                const auto c2 = piles[from][size - 2];
+                if (c1.suit() == c2.suit() && c1.rank() < c2.rank()) {
+                    moves.clear();
+                    moves.emplace_back(from, to);
+                    return moves;
+                }
                 moves.emplace_back(from, to);
             }
         }
@@ -202,7 +210,7 @@ struct Board {
         }
     }
 
-    constexpr std::string serialize() const {
+    std::string serialize() const {
         std::string s;
         s.resize(53);
         s[0] = static_cast<char>(card_idx);
@@ -240,7 +248,7 @@ struct Board {
 
 template<bool TRACE>
 int solve_dfs(const Board& board, TranspositionTable& tt, std::vector<Move>* path, std::vector<Move>* best_path) {
-    const auto avail_moves = board.legal_non_discards();
+    const auto avail_moves = board.pruned_legal_non_discards();
     int best_score = board.score();
     if (avail_moves.empty()) return best_score;
     auto board_string = board.serialize();
