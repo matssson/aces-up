@@ -24,6 +24,7 @@ using TranspositionTable = std::unordered_set<std::string>;
 
 struct Card {
     std::uint8_t packed_id;
+
     static constexpr char SUITS[N_SUITS] = { 'S', 'H', 'D', 'C' };
     static constexpr char RANKS[N_RANKS] = { '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A' };
     static constexpr std::uint8_t LUT[N_CARDS] = {
@@ -34,30 +35,35 @@ struct Card {
     };
     static constexpr unsigned SUIT_SHIFT = 4;
     static constexpr unsigned RANK_MASK = 0x0F;
+
     constexpr Card(int id = 0) : packed_id{LUT[id]} {}
     constexpr int suit() const { return packed_id >> SUIT_SHIFT; }
     constexpr int rank() const { return packed_id & RANK_MASK; }
-    friend std::ostream& operator<<(std::ostream& os, Card c) {
+
+    friend std::ostream& operator<<(std::ostream& os, Card c)
+    {
         return os << RANKS[c.rank()] << SUITS[c.suit()];
     }
 };
 
 struct Deck {
     std::array<Card, N_CARDS> cards{};
-    constexpr Deck() { reset(); }
-    Deck(std::uint64_t seed) { shuffle(seed); }
 
-    constexpr void reset() {
+    constexpr void reset()
+    {
         for (int i = 0; i < N_CARDS; ++i) cards[i] = Card{i};
     }
-
-    void shuffle(std::uint64_t seed) {
+    void shuffle(std::uint64_t seed)
+    {
         reset();
         std::mt19937_64 rng{seed};
         std::shuffle(cards.begin(), cards.end(), rng);
     }
+    constexpr Deck() { reset(); }
+    Deck(std::uint64_t seed) { shuffle(seed); }
 
-    friend std::ostream& operator<<(std::ostream& os, const Deck& d) {
+    friend std::ostream& operator<<(std::ostream& os, const Deck& d)
+    {
         for (int i = 0; i < N_CARDS; ++i) {
             os << d.cards[i];
             os << (((i + 1) % N_RANKS) ? ' ' : '\n');
@@ -72,23 +78,25 @@ struct Pile {
 
     constexpr bool empty() const { return sz == 0; }
     constexpr int size() const { return sz; }
-    const Card& back() const { return data[sz - 1]; }
     void push_back(Card c) { data[sz++] = c; }
     void pop_back() { --sz; }
     void clear() { sz = 0; }
+    const Card& back() const { return data[sz - 1]; }
     const Card& operator[](int i) const { return data[i]; }
 };
 
 struct Move {
     int from;
     int to;
+
     constexpr Move(int f = M_EMPTY, int t = M_EMPTY) : from{f}, to{t} {}
 
     constexpr bool is_move_to_empty_pile() const { return to != M_EMPTY; }
     constexpr bool is_discard() const { return to == M_EMPTY && from != M_EMPTY; }
     constexpr bool is_deal_four() const { return to == M_EMPTY && from == M_EMPTY; }
 
-    friend std::ostream& operator<<(std::ostream& os, const Move& m) {
+    friend std::ostream& operator<<(std::ostream& os, const Move& m)
+    {
         if (m.is_discard()) os << "Discard from pile " << m.from + 1 << ".\n";
         else if (m.is_deal_four()) os << "Deal four cards.\n";
         else os << "Move from pile " << m.from + 1 << " to pile " << m.to + 1 << ".\n";
@@ -102,7 +110,8 @@ struct DFSMoveBuff {
     std::uint8_t sz = 0;
 
     void clear() { sz = 0; }
-    void emplace_back(int from, int to) {
+    void emplace_back(int from, int to)
+    {
         v[sz].from = from;
         v[sz++].to = to;
     }
@@ -114,44 +123,48 @@ struct DFSMoveBuff {
 };
 
 struct Board {
-    const Deck deck;
     std::array<Pile, N_PILES> piles{};
-    std::uint8_t card_idx = 0;
+    const Deck deck;
+    int card_idx = 0;
 
     Board(std::uint64_t seed) : deck{seed} {}
 
-    void reset() {
+    void reset()
+    {
         for (auto& p : piles) p.clear();
         card_idx = 0;
     }
 
     constexpr bool can_deal() const { return card_idx < N_CARDS; }
-    int score() const {
+    int score() const
+    {
         if (can_deal()) return MAX_SCORE + 1;
         int score = -N_ACES;
         for (const auto& p : piles) score += p.size();
         return score;
     }
-
-    void move_to_empty_pile(int from, int to) {
+    void move_to_empty_pile(int from, int to)
+    {
         const auto c = piles[from].back();
         piles[to].push_back(c);
         piles[from].pop_back();
     }
     void discard(int from) { piles[from].pop_back(); }
-    void deal_four() {
+    void deal_four()
+    {
         for (int i = 0; i < N_PILES; ++i) {
             piles[i].push_back(deck.cards[card_idx++]);
         }
     }
-
-    void apply_move(const Move& move) {
+    void apply_move(const Move& move)
+    {
         if (move.to != M_EMPTY) move_to_empty_pile(move.from, move.to);
         else if (move.from != M_EMPTY) discard(move.from);
         else deal_four();
     }
 
-    std::vector<Move> legal_moves() const {
+    std::vector<Move> legal_moves() const
+    {
         std::vector<Move> moves{};
         int max_rank_by_suit[N_SUITS] = { -1, -1, -1, -1 };
         for (int i = 0; i < N_PILES; ++i) if (!piles[i].empty()) {
@@ -173,7 +186,8 @@ struct Board {
         return moves;
     }
 
-    DFSMoveBuff pruned_legal_non_discards() const {
+    DFSMoveBuff pruned_legal_non_discards() const
+    {
         DFSMoveBuff moves{};
         for (int from = 0; from < N_PILES; ++from) if (piles[from].size() > 1) {
             for (int to = 0; to < N_PILES; ++to) if (piles[to].empty()) {
@@ -193,7 +207,8 @@ struct Board {
     }
 
     template<bool TRACE>
-    void discard_all(std::vector<Move>* path) {
+    void discard_all(std::vector<Move>* path)
+    {
         int max_rank_by_suit[N_SUITS] = { -1, -1, -1, -1 };
         int loops = 2;
         while (loops-- > 0) {
@@ -210,7 +225,8 @@ struct Board {
         }
     }
 
-    std::string serialize() const {
+    std::string serialize() const
+    {
         std::string s;
         s.resize(53);
         s[0] = static_cast<char>(card_idx);
@@ -224,7 +240,8 @@ struct Board {
         return s;
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const Board& b) {
+    friend std::ostream& operator<<(std::ostream& os, const Board& b)
+    {
         int h = 0;
         for (int i = 0; i < N_PILES; ++i) h = std::max(h, b.piles[i].size());
         os << "-----------------\n";
@@ -247,7 +264,12 @@ struct Board {
 };
 
 template<bool TRACE>
-void solve_dfs(const Board& board, TranspositionTable& tt, int& best_score, std::vector<Move>* path, std::vector<Move>* best_path) {
+void solve_dfs(const Board& board,
+               int& best_score,
+               TranspositionTable* tt,
+               std::vector<Move>* path,
+               std::vector<Move>* best_path)
+{
     const auto avail_moves = board.pruned_legal_non_discards();
     if (avail_moves.empty()) {
         const int s = board.score();
@@ -257,7 +279,7 @@ void solve_dfs(const Board& board, TranspositionTable& tt, int& best_score, std:
         }
         return;
     }
-    auto [_, new_board] = tt.emplace(board.serialize());
+    auto [_, new_board] = tt->emplace(board.serialize());
     if (!new_board) return;
     for (const auto& m : avail_moves) {
         Board copy = board;
@@ -266,44 +288,44 @@ void solve_dfs(const Board& board, TranspositionTable& tt, int& best_score, std:
             path->push_back(m);
             copy.apply_move(m);
             copy.discard_all<TRACE>(path);
-            solve_dfs<TRACE>(copy, tt, best_score, path, best_path);
+            solve_dfs<TRACE>(copy, best_score, tt, path, best_path);
             path->resize(checkpoint);
         } else {
             copy.apply_move(m);
             copy.discard_all<TRACE>(path);
-            solve_dfs<TRACE>(copy, tt, best_score, path, best_path);
+            solve_dfs<TRACE>(copy, best_score, tt, path, best_path);
         }
         if (best_score == 0) return;
     }
 }
 
-int solve_trace(std::uint64_t seed, bool print = true) {
-    std::vector<Move> path, best_path;
-    path.reserve(80); best_path.reserve(80);
-    Board board(seed);
-    TranspositionTable tt{};
+template<bool TRACE>
+int solve(std::uint64_t seed, TranspositionTable* tt = nullptr)
+{
+    Board board{seed};
     int best_score = 1000;
-    solve_dfs<true>(board, tt, best_score, &path, &best_path);
-    if (print) {
+    if constexpr (TRACE) {
+        TranspositionTable temp_tt{};
+        std::vector<Move> path, best_path;
+        path.reserve(80); best_path.reserve(80);
+        solve_dfs<TRACE>(board, best_score, &temp_tt, &path, &best_path);
+
         int move = 0;
         for (const auto& p : best_path) {
-            std::cout << "Board state (" << move++ << " moves)\n" << board << "Applying move: " << p << "\n";
+            std::cout << "Board state (" << move++ << " moves)\n" << board;
+            std::cout << "Applying move: " << p << "\n";
             board.apply_move(p);
         }
         std::cout << "Board state (" << best_path.size() << " moves)\n" << board;
+    } else {
+        tt->clear();
+        solve_dfs<TRACE>(board, best_score, tt, nullptr, nullptr);
     }
     return best_score;
 }
 
-int solve(std::uint64_t seed, TranspositionTable& tt) {
-    Board board(seed);
-    tt.clear();
-    int best_score = 1000;
-    solve_dfs<false>(board, tt, best_score, nullptr, nullptr);
-    return best_score;
-}
-
-int main() {
+int main()
+{
     constexpr int n_games = 1'000'000;
     constexpr int master_seed = 42;
     std::vector<int> scores(n_games);
@@ -322,7 +344,7 @@ int main() {
 
         threads.emplace_back([&scores, &seeds, start, end] {
             TranspositionTable tt{};
-            for (int i = start; i < end; ++i) scores[i] = solve(seeds[i], tt);
+            for (int i = start; i < end; ++i) scores[i] = solve<false>(seeds[i], &tt);
         });
     }
     for (auto& t : threads) {
