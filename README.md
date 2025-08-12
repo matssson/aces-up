@@ -2,9 +2,9 @@
 **Brute‑force search and statistics for the solitaire game *Aces Up* (a.k.a. *Idiot's Delight*).**
 
 ```text
-Number of games analyzed: 1,000,000
+Number of games analyzed: 1,000,000,000
 
-Win rate: 23.691% ± 0.166% (Clopper-Pearson w/ 99.99% CI)
+Win rate: 23.688% ± 0.005% (Clopper-Pearson w/ 99.99% CI)
 ```
 
 ## Rules
@@ -23,12 +23,12 @@ This can be thought of as the *thoughtful* variant of the game, where the entire
 
 I hadn't found any previous results on the winnability of Aces Up, except for the Wikipedia quote that ["Winning chances with good play are about 1 in 43"](https://en.wikipedia.org/wiki/Aces_Up).
 
-For any given shuffle however, the solvability is a lot higher, namely 23.691% ± 0.166% using Clopper-Pearson (exact) with a 99.99% confidence interval (23.526%&ndash;23.857%).
+For any given shuffle however, the solvability is a lot higher, namely 23.688% ± 0.005% using Clopper-Pearson (exact) with a 99.99% confidence interval (23.683%&ndash;23.693%).
 
-Running the search for n = 1,000,000 games takes 40 seconds on my Macbook, and the worst score found was 42 (with seed = 1635014440093633329).
+Running the search for n = 1,000,000 games takes 40 seconds on my Macbook, and the worst score found was 42 (with seed = 1635014440093633329). The worst score for n = 1,000,000,000 games was 46 (with seed = 15888093322918992564).
 
-![Distribution of scores (n = 1,000,000)](data/score_distribution.png)
-*Figure&nbsp;1. Distribution of scores (n = 1,000,000).*
+![Distribution of scores (n = 1,000,000,000)](data/score_distribution.png)
+*Figure&nbsp;1. Distribution of scores (n = 1,000,000,000).*
 
 Note that a score of 3 is less likely than a score of 4. Other than that the distribution trends downwards, with a score of 0 being the most common.
 

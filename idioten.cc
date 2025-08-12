@@ -299,7 +299,7 @@ int solve(std::uint64_t seed, TranspositionTable& tt) {
 }
 
 int main() {
-    constexpr int n_games = 1'000'000;
+    constexpr int n_games = 1'000'000'000;
     constexpr int master_seed = 42;
     std::vector<int> scores(n_games);
     std::mt19937_64 seed_rng{master_seed};
