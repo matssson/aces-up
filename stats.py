@@ -13,6 +13,8 @@ CSV_PATH = BASE_DIR / "data" / "score_counts.csv"
 OUT_PATH = BASE_DIR / "data" / "score_distribution.png"
 CONF = 99.99
 
+fmt = f"    {{:<{9}}}: {{:>{8}.5f}}"
+
 def print_clopper_pearson(x, n, conf):
   alpha = 1 - conf/100
   high = beta.ppf(1 - alpha/2, x + 1, n - x)
@@ -21,9 +23,10 @@ def print_clopper_pearson(x, n, conf):
   max_diff = max(high - p_hat, p_hat - low)
 
   print(f"{conf}% Clopper-Pearson CI")
-  fmt = f"    {{:<{9}}}: {{:>{8}.5f}} %"
-  for label, value in [("lower", low), ("upper", high), ("max-diff", max_diff)]:
-    print(fmt.format(label, value * 100))
+  for label, value in [("lower", low),
+                       ("upper", high),
+                       ("max-diff", max_diff)]:
+    print(fmt.format(label, value * 100), "%")
 
 try:
   df = pd.read_csv(CSV_PATH)
@@ -37,6 +40,19 @@ solved_games = df.loc[df["score"] == 0, "count"].sum()
 print(f"Total number of games: {total_runs}")
 print(f"Number of solved games: {solved_games}")
 print(f"Proportion solved: {100 * solved_games/total_runs} %")
+
+median_score = df["score"].iloc[df["count"].cumsum().searchsorted([(total_runs + 1)//2, total_runs//2 + 1])].mean()
+mean_score = (df["score"] * df["count"]).sum() / total_runs
+s_sq = ((df["score"] - mean_score)**2 * df["count"]).sum()
+var_sample = s_sq / (total_runs - 1)
+std_sample = var_sample**0.5
+
+for label, value in [("median", median_score),
+                     ("mean", mean_score),
+                     ("variance", var_sample),
+                     ("std dev", std_sample)]:
+  print(fmt.format(label, value))
+
 print_clopper_pearson(solved_games, total_runs, CONF)
 
 df["pct"] = df["count"] / total_runs

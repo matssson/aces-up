@@ -32,6 +32,8 @@ Running the search for n = 1,000,000 games takes 40 seconds on my Macbook, and t
 
 Note that a score of 3 is less likely than a score of 4. Other than that the distribution trends downwards, with a score of 0 being the most common. See [score_counts.csv](/data/score_counts.csv) for details.
 
+The median score is 3, with mean = 5.545 (SD = 6.227).
+
 For example runs see [/examples](/examples).
 
 ## License
