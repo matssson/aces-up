@@ -12,7 +12,7 @@
 #include <random>
 #include <string>
 #include <thread>
-#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 constexpr int N_RANKS = 13, N_SUITS = 4, N_PILES = 4, N_ACES = 4;
@@ -20,7 +20,7 @@ constexpr int N_CARDS = N_RANKS * N_SUITS;
 constexpr int MAX_SCORE = N_CARDS - N_ACES;
 constexpr int M_EMPTY = -1;
 
-using TranspositionTable = std::unordered_map<std::string, int>;
+using TranspositionTable = std::unordered_set<std::string>;
 
 struct Card {
     std::uint8_t packed_id;
@@ -247,12 +247,18 @@ struct Board {
 };
 
 template<bool TRACE>
-int solve_dfs(const Board& board, TranspositionTable& tt, std::vector<Move>* path, std::vector<Move>* best_path) {
+void solve_dfs(const Board& board, TranspositionTable& tt, int& best_score, std::vector<Move>* path, std::vector<Move>* best_path) {
     const auto avail_moves = board.pruned_legal_non_discards();
-    int best_score = board.score();
-    if (avail_moves.empty()) return best_score;
-    auto board_string = board.serialize();
-    if (tt.contains(board_string)) return tt[board_string];
+    if (avail_moves.empty()) {
+        const int s = board.score();
+        if (s < best_score) {
+            if constexpr (TRACE) *best_path = *path;
+            best_score = s;
+        }
+        return;
+    }
+    auto [_, new_board] = tt.emplace(board.serialize());
+    if (!new_board) return;
     for (const auto& m : avail_moves) {
         Board copy = board;
         if constexpr (TRACE) {
@@ -260,27 +266,24 @@ int solve_dfs(const Board& board, TranspositionTable& tt, std::vector<Move>* pat
             path->push_back(m);
             copy.apply_move(m);
             copy.discard_all<TRACE>(path);
-            int child_score = solve_dfs<TRACE>(copy, tt, path, best_path);
-            if (child_score < best_score) { best_score = child_score; *best_path = *path; }
+            solve_dfs<TRACE>(copy, tt, best_score, path, best_path);
             path->resize(checkpoint);
         } else {
             copy.apply_move(m);
             copy.discard_all<TRACE>(path);
-            int child_score = solve_dfs<TRACE>(copy, tt, path, best_path);
-            if (child_score < best_score) best_score = child_score;
+            solve_dfs<TRACE>(copy, tt, best_score, path, best_path);
         }
-        if (best_score == 0) return best_score;
+        if (best_score == 0) return;
     }
-    tt.try_emplace(std::move(board_string), best_score);
-    return best_score;
 }
 
 int solve_trace(std::uint64_t seed, bool print = true) {
     std::vector<Move> path, best_path;
     path.reserve(80); best_path.reserve(80);
     Board board(seed);
-    TranspositionTable tt;
-    int best_score = solve_dfs<true>(board, tt, &path, &best_path);
+    TranspositionTable tt{};
+    int best_score = 1000;
+    solve_dfs<true>(board, tt, best_score, &path, &best_path);
     if (print) {
         int move = 0;
         for (const auto& p : best_path) {
@@ -295,11 +298,13 @@ int solve_trace(std::uint64_t seed, bool print = true) {
 int solve(std::uint64_t seed, TranspositionTable& tt) {
     Board board(seed);
     tt.clear();
-    return solve_dfs<false>(board, tt, nullptr, nullptr);
+    int best_score = 1000;
+    solve_dfs<false>(board, tt, best_score, nullptr, nullptr);
+    return best_score;
 }
 
 int main() {
-    constexpr int n_games = 1'000'000'000;
+    constexpr int n_games = 1'000'000;
     constexpr int master_seed = 42;
     std::vector<int> scores(n_games);
     std::mt19937_64 seed_rng{master_seed};
@@ -316,7 +321,7 @@ int main() {
         const int end = std::min(n_games, start + chunk);
 
         threads.emplace_back([&scores, &seeds, start, end] {
-            TranspositionTable tt;
+            TranspositionTable tt{};
             for (int i = start; i < end; ++i) scores[i] = solve(seeds[i], tt);
         });
     }
