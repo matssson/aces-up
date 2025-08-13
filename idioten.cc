@@ -61,11 +61,12 @@ struct Deck {
     }
     constexpr Deck() { reset(); }
     Deck(std::uint64_t seed) { shuffle(seed); }
+    const Card& operator[](int i) const { return cards[i]; }
 
     friend std::ostream& operator<<(std::ostream& os, const Deck& d)
     {
         for (int i = 0; i < N_CARDS; ++i) {
-            os << d.cards[i];
+            os << d[i];
             os << (((i + 1) % N_RANKS) ? ' ' : '\n');
         }
         return os;
@@ -73,16 +74,16 @@ struct Deck {
 };
 
 struct Pile {
-    std::array<Card, N_CARDS/N_PILES> data{};
+    std::array<Card, N_CARDS/N_PILES> cards{};
     std::uint8_t sz = 0;
 
     constexpr bool empty() const { return sz == 0; }
     constexpr int size() const { return sz; }
-    void push_back(Card c) { data[sz++] = c; }
+    void push_back(Card c) { cards[sz++] = c; }
     void pop_back() { --sz; }
     void clear() { sz = 0; }
-    const Card& back() const { return data[sz - 1]; }
-    const Card& operator[](int i) const { return data[i]; }
+    const Card& back() const { return cards[sz - 1]; }
+    const Card& operator[](int i) const { return cards[i]; }
 };
 
 struct Move {
@@ -106,20 +107,20 @@ struct Move {
 
 struct DFSMoveBuff {
     static constexpr int MAX_MOVES_TO_EMPTY_PLUS_DEAL = 5;
-    std::array<Move, MAX_MOVES_TO_EMPTY_PLUS_DEAL> v{};
+    std::array<Move, MAX_MOVES_TO_EMPTY_PLUS_DEAL> moves{};
     std::uint8_t sz = 0;
 
     void clear() { sz = 0; }
     void emplace_back(int from, int to)
     {
-        v[sz].from = from;
-        v[sz++].to = to;
+        moves[sz].from = from;
+        moves[sz++].to = to;
     }
     constexpr bool empty() const { return sz == 0; }
 
     using const_iterator = const Move*;
-    const_iterator begin() const { return v.data(); }
-    const_iterator end() const { return v.data() + sz; }
+    const_iterator begin() const { return moves.data(); }
+    const_iterator end() const { return moves.data() + sz; }
 };
 
 struct Board {
@@ -153,7 +154,7 @@ struct Board {
     void deal_four()
     {
         for (int i = 0; i < N_PILES; ++i) {
-            piles[i].push_back(deck.cards[card_idx++]);
+            piles[i].push_back(deck[card_idx++]);
         }
     }
     void apply_move(const Move& move)
